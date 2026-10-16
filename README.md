@@ -78,7 +78,7 @@ Only publish work you have permission to show. The site never invents clients, r
 
 ## Deploy on Render (PostgreSQL)
 
-Step-by-step guide, including creating the Render Postgres: [docs/RENDER_DEPLOY.md](docs/RENDER_DEPLOY.md). In short: build command `npm install --include=dev && npm run db:push && npm run build`, start command `npm run seed && npm start`, and the environment variables listed in the guide. Free Render instances sleep and free Postgres expires after 30 days, so use paid plans for the real site. To keep a free instance awake, ping `/api/health` every 5 to 10 minutes (step 7 of the guide; a GitHub Actions pinger is included).
+Step-by-step guide, including creating the Render Postgres: [docs/RENDER_DEPLOY.md](docs/RENDER_DEPLOY.md). In short: build command `npm install --include=dev && npm run db:push && npm run build`, start command `npm run seed && npm start`, and the environment variables listed in the guide. Free Render instances sleep and free Postgres expires after 30 days, so use paid plans for the real site. A free instance is kept awake by a built-in scheduler (`src/lib/scheduler.ts`) that pings the app's own `APP_URL` every 10 minutes; set `KEEP_AWAKE=false` on a paid always-on instance.
 
 ## Deploy on Hostinger (MySQL)
 

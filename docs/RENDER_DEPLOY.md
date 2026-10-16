@@ -99,9 +99,9 @@ Node 24 is selected by the `.node-version` file in the repo; you do not need to 
 2. Add the DNS records Render shows (a CNAME for `www`; for the bare domain follow Render's instructions). If you use Cloudflare, start with the proxy turned off (DNS only) until the certificate is issued, then turn it on with SSL mode **Full (strict)**.
 3. When the domain works, change `APP_URL` to `https://www.yourdomain.com` and redeploy. This keeps client quotation links, the sitemap and the admin security check correct.
 
-## Step 6: Keep Expired and Overdue statuses current
+## Step 6: Daily status refresh (already automatic)
 
-Statuses update whenever someone opens the lists. To update them daily even when nobody does, call this once a day:
+The app refreshes Expired and Overdue statuses by itself (see Step 7) and whenever someone opens the lists, so this step is optional. If you prefer an external job, call this once a day:
 
 ```bash
 curl -X POST https://YOURDOMAIN/api/cron/refresh-statuses -H "Authorization: Bearer YOUR_CRON_SECRET"
@@ -109,33 +109,35 @@ curl -X POST https://YOURDOMAIN/api/cron/refresh-statuses -H "Authorization: Bea
 
 Options: a Render Cron Job (check Render's pricing for cron jobs), or a free scheduled GitHub Actions workflow that runs the same `curl` with the two values stored as repository secrets.
 
-## Step 7: Keep a free service awake (so the first visit is fast)
+## Step 7: Keep the free service awake (built into the app)
 
-A free web service sleeps after 15 minutes without traffic, and the first visitor waits about a minute. To prevent that, something must request the site at least every 10 to 14 minutes. The site has a tiny endpoint for this: `https://YOUR-SITE/api/health` (it answers instantly; add `?db=1` to also test the database).
+A free web service sleeps after 15 minutes without traffic, and the first visitor then waits about a minute. The app now has a **built-in scheduled job** (`src/lib/scheduler.ts`) that prevents this: every 10 minutes it requests its own public address (`APP_URL` + `/api/health`), which counts as traffic and stops Render from putting it to sleep. Nothing else to set up: no external pinger, no cron service.
 
-**Option A, recommended: a free external pinger.** Create a free account at UptimeRobot (https://uptimerobot.com) or cron-job.org (https://cron-job.org), then:
+It starts automatically when the app starts in production and `APP_URL` is a public `https://` address, so **make sure `APP_URL` is your exact Render (or custom domain) URL**. In the logs you will see:
 
-1. Add a new **HTTP(s) monitor** (UptimeRobot) or **cron job** (cron-job.org).
-2. URL: `https://YOUR-SITE/api/health` (your Render address or your domain).
-3. Interval: every **5 minutes** (UptimeRobot's free plan allows 5) or every 10 minutes at most. Never longer than 14.
-4. Method GET, and set the timeout to 60 seconds or more so it can wake a sleeping site.
-5. Save. As a bonus, UptimeRobot emails you if the site goes down.
+```
+[scheduler] keep-awake started for https://your-site.onrender.com (every 600s)
+[scheduler] keep-awake ping #1 ok (every 600s)
+```
 
-**Option B: the GitHub Actions pinger already in the repo** (`.github/workflows/keep-awake.yml`, every 10 minutes):
+Only the first ping and any failures are logged. Optional settings (environment variables):
 
-1. In GitHub open the repo, then **Settings**, **Secrets and variables**, **Actions**, tab **Variables**.
-2. Click **New repository variable**, name `SITE_URL`, value `https://YOUR-SITE` (no trailing slash).
-3. Open the **Actions** tab and enable workflows if GitHub asks. Run **Keep site awake** once with **Run workflow** to check it works.
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `KEEP_AWAKE` | automatic | `false` turns it off (use this on a paid always-on instance); `true` forces it on |
+| `KEEP_AWAKE_INTERVAL_SECONDS` | `600` | Ping interval, allowed 5 to 840 (Render sleeps at 900 seconds) |
+| `KEEP_AWAKE_VERBOSE` | off | `true` logs every ping |
 
-GitHub can delay scheduled runs by several minutes and pauses them after 60 days without activity in the repo, so Option A is more dependable. You can use both.
+The same scheduler also refreshes **Expired and Overdue** statuses at start and every 6 hours, so you do not need an external daily cron job for that either.
 
-**Things to know**
+**Honest limits**
 
-- Render gives each workspace 750 free instance hours a month. One service running all month uses about 744, so **only one** free web service per workspace can stay awake all month. A second free service in the same workspace will run out of hours and be suspended.
-- Keeping it awake only fixes the sleep delay. The free Postgres still expires 30 days after creation (see "Choose your plans"), and free instances can still restart at any time.
-- For the real site, a paid instance stays awake without any pinger.
-- Change the Render **Health Check Path** to `/api/health` if you have not already.
-
+- Code cannot wake a service that is already asleep. The scheduler starts whenever the service starts (every deploy, restart, or the first visit after a sleep) and then keeps it awake. After you deploy, or after any restart, the site is awake and stays awake. If Render ever restarts or sleeps the instance anyway, the first visitor after that may still wait once.
+- Render gives each workspace 750 free instance hours a month. One service running all month uses about 744, so **only one** free web service per workspace can stay awake all month.
+- It only fixes the sleep delay. The free Postgres still expires 30 days after creation (see "Choose your plans").
+- For the real site, a paid instance stays awake on its own: set `KEEP_AWAKE=false` there.
+- If you ever want a safety net, a free external monitor (UptimeRobot or cron-job.org) can request `https://YOUR-SITE/api/health` every 5 minutes. It is optional.
+- Set the Render **Health Check Path** to `/api/health`.
 ## Updating the site later
 
 Push to `main`; Render rebuilds and deploys automatically. The build runs `db:push`, so adding fields applies on deploy. Removing or changing a column in a way that could lose data makes the build stop instead of deleting anything, and you decide what to do.
