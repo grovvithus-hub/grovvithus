@@ -52,7 +52,7 @@ Start on the free plans to test, then change plans in the dashboard before you l
 | Build Command | `npm install --include=dev && npm run db:push && npm run build` |
 | Start Command | `npm run seed && npm start` |
 | Instance type | Free to test, paid for the real site |
-| Health Check Path | `/` |
+| Health Check Path | `/api/health` |
 
 What these do:
 
@@ -108,6 +108,33 @@ curl -X POST https://YOURDOMAIN/api/cron/refresh-statuses -H "Authorization: Bea
 ```
 
 Options: a Render Cron Job (check Render's pricing for cron jobs), or a free scheduled GitHub Actions workflow that runs the same `curl` with the two values stored as repository secrets.
+
+## Step 7: Keep a free service awake (so the first visit is fast)
+
+A free web service sleeps after 15 minutes without traffic, and the first visitor waits about a minute. To prevent that, something must request the site at least every 10 to 14 minutes. The site has a tiny endpoint for this: `https://YOUR-SITE/api/health` (it answers instantly; add `?db=1` to also test the database).
+
+**Option A, recommended: a free external pinger.** Create a free account at UptimeRobot (https://uptimerobot.com) or cron-job.org (https://cron-job.org), then:
+
+1. Add a new **HTTP(s) monitor** (UptimeRobot) or **cron job** (cron-job.org).
+2. URL: `https://YOUR-SITE/api/health` (your Render address or your domain).
+3. Interval: every **5 minutes** (UptimeRobot's free plan allows 5) or every 10 minutes at most. Never longer than 14.
+4. Method GET, and set the timeout to 60 seconds or more so it can wake a sleeping site.
+5. Save. As a bonus, UptimeRobot emails you if the site goes down.
+
+**Option B: the GitHub Actions pinger already in the repo** (`.github/workflows/keep-awake.yml`, every 10 minutes):
+
+1. In GitHub open the repo, then **Settings**, **Secrets and variables**, **Actions**, tab **Variables**.
+2. Click **New repository variable**, name `SITE_URL`, value `https://YOUR-SITE` (no trailing slash).
+3. Open the **Actions** tab and enable workflows if GitHub asks. Run **Keep site awake** once with **Run workflow** to check it works.
+
+GitHub can delay scheduled runs by several minutes and pauses them after 60 days without activity in the repo, so Option A is more dependable. You can use both.
+
+**Things to know**
+
+- Render gives each workspace 750 free instance hours a month. One service running all month uses about 744, so **only one** free web service per workspace can stay awake all month. A second free service in the same workspace will run out of hours and be suspended.
+- Keeping it awake only fixes the sleep delay. The free Postgres still expires 30 days after creation (see "Choose your plans"), and free instances can still restart at any time.
+- For the real site, a paid instance stays awake without any pinger.
+- Change the Render **Health Check Path** to `/api/health` if you have not already.
 
 ## Updating the site later
 
