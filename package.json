@@ -8,9 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "postinstall": "prisma generate",
-    "db:push": "prisma db push",
-    "db:mysql-schema": "node scripts/make-mysql-schema.mjs",
+    "postinstall": "node scripts/prisma.mjs generate",
+    "db:push": "node scripts/prisma.mjs db push",
+    "db:mysql-schema": "node scripts/make-schema.mjs mysql",
+    "db:postgres-schema": "node scripts/make-schema.mjs postgresql",
     "seed": "tsx scripts/seed.ts",
     "test:e2e": "node scripts/e2e.mjs http://localhost:3100 && node scripts/e2e-site.mjs http://localhost:3100 && node scripts/e2e-roles.mjs http://localhost:3100"
   },

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { like } from "@/lib/dbsearch";
 import { BILLING_ROLES } from "@/lib/auth";
 import { jsonBody, ok, route } from "@/lib/http";
 import { billingClientSchema } from "@/lib/billing/validators";
@@ -8,11 +9,11 @@ export const GET = route({ roles: BILLING_ROLES }, async (req) => {
   const where = search
     ? {
         OR: [
-          { name: { contains: search } },
-          { company: { contains: search } },
-          { email: { contains: search } },
-          { phone: { contains: search } },
-          { gstin: { contains: search } },
+          { name: like(search) },
+          { company: like(search) },
+          { email: like(search) },
+          { phone: like(search) },
+          { gstin: like(search) },
         ],
       }
     : {};

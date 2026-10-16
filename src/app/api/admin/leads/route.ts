@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { like } from "@/lib/dbsearch";
 import { BILLING_ROLES } from "@/lib/auth";
 import { jsonBody, ok, route } from "@/lib/http";
 import { nextDocumentNumber } from "@/lib/billing/numbers";
@@ -12,7 +13,7 @@ export const GET = route({ roles: BILLING_ROLES }, async (req) => {
     where: {
       ...(status && status !== "ALL" ? { status } : {}),
       ...(search
-        ? { OR: [{ clientName: { contains: search } }, { companyName: { contains: search } }, { email: { contains: search } }, { phone: { contains: search } }, { leadNumber: { contains: search } }] }
+        ? { OR: [{ clientName: like(search) }, { companyName: like(search) }, { email: like(search) }, { phone: like(search) }, { leadNumber: like(search) }] }
         : {}),
     },
     orderBy: { createdAt: "desc" },

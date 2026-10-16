@@ -12,13 +12,19 @@ async function main() {
   if (!email || !password) throw new Error("Set ADMIN_EMAIL and ADMIN_PASSWORD in .env first");
   if (password.length < 12) throw new Error("ADMIN_PASSWORD must be at least 12 characters");
 
-  const passwordHash = await bcrypt.hash(password, 12);
-  await prisma.user.upsert({
-    where: { email },
-    update: { passwordHash, isActive: true, failedLogins: 0, lockedUntil: null },
-    create: { email, name: "Admin", passwordHash, role: "SUPER_ADMIN" },
-  });
-  console.log(`Super Admin ready: ${email}`);
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing && process.env.RESET_ADMIN_PASSWORD !== "true") {
+    // This runs on every deploy on some hosts: never overwrite a password that may have been changed.
+    console.log(`Super Admin already exists: ${email} (set RESET_ADMIN_PASSWORD=true once to reset the password)`);
+  } else {
+    const passwordHash = await bcrypt.hash(password, 12);
+    await prisma.user.upsert({
+      where: { email },
+      update: { passwordHash, isActive: true, failedLogins: 0, lockedUntil: null },
+      create: { email, name: "Admin", passwordHash, role: "SUPER_ADMIN" },
+    });
+    console.log(`Super Admin ready: ${email}`);
+  }
 
   if ((await prisma.billingCompany.count()) === 0) {
     await prisma.billingCompany.create({

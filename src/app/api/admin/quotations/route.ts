@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { like } from "@/lib/dbsearch";
 import { BILLING_ROLES } from "@/lib/auth";
 import { ok, route } from "@/lib/http";
 import { buildAmounts } from "@/lib/billing/amounts";
@@ -20,11 +21,11 @@ export const GET = route({ roles: BILLING_ROLES }, async (req) => {
       ...(search
         ? {
             OR: [
-              { quotationNumber: { contains: search } },
-              { clientName: { contains: search } },
-              { clientEmail: { contains: search } },
-              { clientCompany: { contains: search } },
-              { poNumber: { contains: search } },
+              { quotationNumber: like(search) },
+              { clientName: like(search) },
+              { clientEmail: like(search) },
+              { clientCompany: like(search) },
+              { poNumber: like(search) },
             ],
           }
         : {}),

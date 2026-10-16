@@ -3,6 +3,23 @@ import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
 /**
+ * Origins that may send state-changing requests. Behind a host such as Render the app sees plain HTTP on an
+ * internal address, so the public origin comes from the forwarded headers and from APP_URL.
+ */
+function allowedOrigins(request: NextRequest) {
+  const allowed = new Set<string>([request.nextUrl.origin]);
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const proto = (request.headers.get("x-forwarded-proto") || request.nextUrl.protocol.replace(":", "")).split(",")[0].trim();
+  if (host) allowed.add(`${proto}://${host.split(",")[0].trim()}`);
+  try {
+    if (process.env.APP_URL) allowed.add(new URL(process.env.APP_URL).origin);
+  } catch {
+    /* ignore a malformed APP_URL */
+  }
+  return allowed;
+}
+
+/**
  * Runs before every admin page and API call:
  *  - admin pages redirect to the login page when signed out;
  *  - admin APIs answer 401;
@@ -15,7 +32,7 @@ export async function proxy(request: NextRequest) {
 
   if (isApi && !["GET", "HEAD", "OPTIONS"].includes(request.method)) {
     const origin = request.headers.get("origin");
-    if (origin && origin !== request.nextUrl.origin) {
+    if (origin && !allowedOrigins(request).has(origin)) {
       return NextResponse.json({ status: "fail", message: "Cross-site request blocked" }, { status: 403 });
     }
   }

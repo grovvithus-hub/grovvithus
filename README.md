@@ -5,7 +5,7 @@ Agency website, portfolio and admin panel.
 - **Public website** (animated, with 3D): home, 17 service pages in 6 groups, portfolio with case studies, how pricing works, about, contact, and the five legal pages.
 - **Admin panel** (`/admin`): portfolio management, leads, quotations, invoices, clients and billing settings.
 
-Stack: Next.js 16 (App Router, TypeScript), Tailwind CSS 4, Prisma 6 (SQLite locally, MySQL for Hostinger), Three.js with React Three Fiber, Framer Motion, sharp, PDFKit, Nodemailer.
+Stack: Next.js 16 (App Router, TypeScript), Tailwind CSS 4, Prisma 6 (SQLite locally, PostgreSQL on Render, MySQL on Hostinger; chosen automatically from `DATABASE_URL`), Three.js with React Three Fiber, Framer Motion, sharp, PDFKit, Nodemailer.
 
 ## Run it locally
 
@@ -20,7 +20,7 @@ npm run dev              # http://localhost:3000  (admin: /admin)
 Generate secrets with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`.
 `ADMIN_PASSWORD` must be at least 12 characters. Emails are not sent until you set the `SMTP_*` values and `DISABLE_EMAILS=false`.
 
-Optional public settings: `NEXT_PUBLIC_WHATSAPP_NUMBER` (digits with country code, shows the WhatsApp button and links) and `NEXT_PUBLIC_CONTACT_EMAIL`. Uploaded images go to `UPLOAD_DIR` (default `./storage/uploads`, outside the web root; on Hostinger set an absolute path that survives redeploys).
+Optional public settings: `NEXT_PUBLIC_WHATSAPP_NUMBER` (digits with country code, shows the WhatsApp button and links) and `NEXT_PUBLIC_CONTACT_EMAIL`. Uploaded portfolio images are stored in the database, so they survive redeploys on any host and are included in database backups.
 
 ## Tests
 
@@ -53,7 +53,7 @@ Design follows the UI/UX document: near-black `#0F1412`, lime `#B6F23A`, deep gr
 
 ## Portfolio admin (`/admin/portfolio`)
 
-Add, edit, reorder (up/down), feature, schedule (future publish date), preview drafts on the real site, and move to trash (restorable). Each project has story, up to six real results, services, technologies, live and video links, testimonial, SEO title and description, and an image gallery with cover and captions. Uploads accept JPEG, PNG and WebP only; every file is re-encoded to WebP (max 2000 px) with a thumbnail, which strips metadata and guarantees it is an image. SVG and anything else is refused. Roles: Super Admin and Editor manage the portfolio; Super Admin and Sales handle billing.
+Add, edit, reorder (up/down), feature, schedule (future publish date), preview drafts on the real site, and move to trash (restorable). Each project has story, up to six real results, services, technologies, live and video links, testimonial, SEO title and description, and an image gallery with cover and captions. Uploads accept JPEG, PNG and WebP only; every file is re-encoded to WebP (max 2000 px) with a thumbnail and stored in the database, which strips metadata and guarantees it is an image. SVG and anything else is refused. Roles: Super Admin and Editor manage the portfolio; Super Admin and Sales handle billing.
 
 Only publish work you have permission to show. The site never invents clients, results or testimonials: with no projects it shows an honest empty state.
 
@@ -76,11 +76,14 @@ Only publish work you have permission to show. The site never invents clients, r
 - Bank and UPI changes are audited and emailed to every Super Admin; account numbers are masked.
 - Portfolio text is escaped on output; links must be http(s); videos only from YouTube (no-cookie), Vimeo or an https `.mp4`.
 
+## Deploy on Render (PostgreSQL)
+
+Step-by-step guide, including creating the Render Postgres: [docs/RENDER_DEPLOY.md](docs/RENDER_DEPLOY.md). In short: build command `npm install --include=dev && npm run db:push && npm run build`, start command `npm run seed && npm start`, and the environment variables listed in the guide. Free Render instances sleep and free Postgres expires after 30 days, so use paid plans for the real site.
+
 ## Deploy on Hostinger (MySQL)
 
-1. `npm run db:mysql-schema` writes `prisma/schema.mysql.prisma` (MySQL provider, long text columns).
-2. In hPanel create the database and user. Set `DATABASE_URL="mysql://USER:PASSWORD@127.0.0.1:3306/DBNAME"` (use 127.0.0.1) and the other variables from `.env.example` as Node.js environment variables. `APP_URL` must be the public site URL. Set `UPLOAD_DIR` to a folder outside the app directory.
-3. Build with `npx prisma generate --schema prisma/schema.mysql.prisma && npx prisma db push --schema prisma/schema.mysql.prisma && npm run build`, then `npm run seed` once.
+2. In hPanel create the database and user. Set `DATABASE_URL="mysql://USER:PASSWORD@127.0.0.1:3306/DBNAME"` (use 127.0.0.1) and the other variables from `.env.example` as Node.js environment variables. `APP_URL` must be the public site URL.
+3. With the MySQL `DATABASE_URL` set, run `npm install`, `npm run db:push`, `npm run build` and `npm run seed` (the scripts pick the MySQL schema automatically).
 4. Daily job so Expired and Overdue stay current: `curl -X POST https://YOURDOMAIN/api/cron/refresh-statuses -H "Authorization: Bearer $CRON_SECRET"`.
 5. Back up the database and the upload folder daily (see the master plan, section 8).
 

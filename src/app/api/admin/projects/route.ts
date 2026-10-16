@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { like } from "@/lib/dbsearch";
 import { CONTENT_ROLES } from "@/lib/auth";
 import { jsonBody, ok, route } from "@/lib/http";
 import { projectSchema, uniqueSlug } from "@/lib/projects";
@@ -14,7 +15,7 @@ export const GET = route({ roles: CONTENT_ROLES }, async (req) => {
     where: {
       deletedAt: trash ? { not: null } : null,
       ...(status && status !== "ALL" ? { status } : {}),
-      ...(search ? { OR: [{ title: { contains: search } }, { clientName: { contains: search } }, { industry: { contains: search } }] } : {}),
+      ...(search ? { OR: [{ title: like(search) }, { clientName: like(search) }, { industry: like(search) }] } : {}),
     },
     orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
     take: 300,
