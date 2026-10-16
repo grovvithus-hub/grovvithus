@@ -1,0 +1,350 @@
+// GrovvIthUs database schema.
+//
+// Local development uses SQLite so no database server is needed.
+// For production on Hostinger (MySQL) run `npm run db:mysql-schema`: it writes
+// prisma/schema.mysql.prisma with provider "mysql" and long-text column types, which you then
+// use with `prisma generate --schema prisma/schema.mysql.prisma`.
+//
+// Statuses are plain strings (validated in code) so the same schema works on both databases.
+// Lines marked `/// @text` or `/// @longtext` become @db.Text / @db.LongText on MySQL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  /// SUPER_ADMIN | SALES | EDITOR | VIEWER
+  role         String   @default("SUPER_ADMIN")
+  isActive     Boolean  @default(true)
+  failedLogins Int      @default(0)
+  lockedUntil  DateTime?
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Lead {
+  id                String      @id @default(cuid())
+  leadNumber        String      @unique
+  clientName        String
+  companyName       String?
+  email             String
+  phone             String
+  serviceOfInterest String?
+  projectDetails    String? // @text
+  timeline          String?
+  source            String      @default("WEBSITE")
+  /// NEW | CONTACTED | DEMO_SCHEDULED | DEMO_COMPLETED | PROPOSAL_SENT | NEGOTIATING | WON | LOST
+  status            String      @default("NEW")
+  estimatedValue    Float       @default(0)
+  currency          String      @default("INR")
+  notes             String? // @text
+  assignedTo        String?
+  followUpDate      DateTime?
+  quotations        Quotation[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([status])
+  @@index([email])
+}
+
+model Quotation {
+  id                     String          @id @default(cuid())
+  quotationNumber        String          @unique // QUO-2026-0001
+  leadId                 String?
+  lead                   Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  companyId              String?
+  company                BillingCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  clientId               String?
+  client                 BillingClient?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  poNumber               String?
+  bankAccountId          String? // "NONE" hides bank details on the document
+  title                  String?
+  placeOfSupply          String?
+  placeOfSupplyCode      String?
+  taxType                String? // CGST_SGST | IGST
+  cgstAmount             Float           @default(0)
+  sgstAmount             Float           @default(0)
+  igstAmount             Float           @default(0)
+  additionalCharges      Float           @default(0)
+  additionalChargesLabel String?
+  amountInWords          String?
+  shareToken             String?         @unique
+  viewedAt               DateTime?
+  viewCount              Int             @default(0)
+  acceptedAt             DateTime?
+  acceptedBy             String?
+  acceptedIp             String?
+  clientName             String
+  clientCompany          String?
+  clientEmail            String
+  clientPhone            String?
+  clientAddress          String? // @text
+  clientGst              String?
+  items                  Json
+  subTotal               Float
+  taxPercent             Float           @default(18)
+  taxAmount              Float           @default(0)
+  discountAmount         Float           @default(0)
+  totalAmount            Float
+  currency               String          @default("INR")
+  termsAndConditions     String? // @text
+  notes                  String? // @text
+  /// DRAFT | SENT | VIEWED | ACCEPTED | CONVERTED | DECLINED | EXPIRED
+  status                 String          @default("DRAFT")
+  validUntil             DateTime?
+  sentViaEmail           Boolean         @default(false)
+  sentViaWhatsApp        Boolean         @default(false)
+  lastSentAt             DateTime?
+  invoices               Invoice[]
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@index([status])
+  @@index([clientEmail])
+}
+
+model Invoice {
+  id                     String          @id @default(cuid())
+  invoiceNumber          String          @unique // INV-2026-0001
+  quotationId            String?
+  quotation              Quotation?      @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  companyId              String?
+  company                BillingCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  clientId               String?
+  client                 BillingClient?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  poNumber               String?
+  bankAccountId          String?
+  placeOfSupply          String?
+  placeOfSupplyCode      String?
+  taxType                String?
+  cgstAmount             Float           @default(0)
+  sgstAmount             Float           @default(0)
+  igstAmount             Float           @default(0)
+  additionalCharges      Float           @default(0)
+  additionalChargesLabel String?
+  amountInWords          String?
+  shareToken             String?         @unique
+  viewedAt               DateTime?
+  viewCount              Int             @default(0)
+  isDraft                Boolean         @default(false)
+  /// Array of { amount, method, reference, date, notes, recordedAt, recordedBy }
+  payments               Json?
+  clientName             String
+  clientCompany          String?
+  clientEmail            String
+  clientPhone            String?
+  clientGst              String?
+  billingAddress         String? // @text
+  items                  Json
+  subTotal               Float
+  taxPercent             Float           @default(18)
+  taxAmount              Float           @default(0)
+  discountAmount         Float           @default(0)
+  totalAmount            Float
+  amountPaid             Float           @default(0)
+  balanceDue             Float           @default(0)
+  currency               String          @default("INR")
+  issueDate              DateTime        @default(now())
+  dueDate                DateTime
+  /// UNPAID | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED
+  paymentStatus          String          @default("UNPAID")
+  paymentMethod          String?
+  paymentReference       String?
+  notes                  String? // @text
+  termsAndConditions     String? // @text
+  sentViaEmail           Boolean         @default(false)
+  sentViaWhatsApp        Boolean         @default(false)
+  lastReminderSentAt     DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@index([paymentStatus])
+  @@index([clientEmail])
+  @@index([issueDate])
+}
+
+/// Company that issues quotations and invoices ("Billed By"). One is the default.
+model BillingCompany {
+  id                String      @id @default(cuid())
+  name              String
+  gstin             String?
+  pan               String?
+  email             String?
+  phone             String?
+  website           String?
+  addressLine1      String?
+  addressLine2      String?
+  city              String?
+  state             String?
+  stateCode         String?
+  pincode           String?
+  country           String      @default("India")
+  logoDataUrl       String? // @longtext
+  signatureDataUrl  String? // @longtext
+  stampDataUrl      String? // @longtext
+  bankAccountName   String?
+  bankName          String?
+  bankAccountNumber String?
+  bankIfsc          String?
+  bankBranch        String?
+  bankSwift         String?
+  upiId             String?
+  /// Array of { id, label, accountName, bankName, accountNumber, ifsc, branch, swift, isDefault }
+  bankAccounts      Json?
+  quotationTerms    String? // @text
+  invoiceTerms      String? // @text
+  defaultNotes      String? // @text
+  emailCc           String?
+  isDefault         Boolean     @default(false)
+  isActive          Boolean     @default(true)
+  quotations        Quotation[]
+  invoices          Invoice[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+/// Saved customer for the "Billed To" picker.
+model BillingClient {
+  id             String      @id @default(cuid())
+  name           String
+  company        String?
+  email          String?
+  phone          String?
+  gstin          String?
+  billingAddress String? // @text
+  state          String?
+  stateCode      String?
+  leadId         String?
+  quotations     Quotation[]
+  invoices       Invoice[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([name])
+}
+
+/// Atomic sequence per document type and year, e.g. key "INV-2026".
+model DocumentCounter {
+  id  String @id @default(cuid())
+  key String @unique
+  seq Int    @default(0)
+}
+
+model CommunicationLog {
+  id            String   @id @default(cuid())
+  channel       String // EMAIL | WHATSAPP
+  recipient     String
+  recipientName String?
+  subject       String?
+  messageBody   String // @text
+  status        String // SENT | FAILED | QUEUED
+  errorMessage  String? // @text
+  referenceId   String?
+  metadata      Json?
+  sentAt        DateTime @default(now())
+
+  @@index([referenceId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  userEmail String?
+  action    String
+  details   String // @text
+  ipAddress String?
+  timestamp DateTime @default(now())
+
+  @@index([action])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String // @text
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+
+/// Uploaded image. Files live in UPLOAD_DIR (outside the web root) and are served by /media/[id].
+model Media {
+  id        String         @id @default(cuid())
+  mime      String
+  width     Int
+  height    Int
+  size      Int
+  altText   String?
+  createdAt DateTime       @default(now())
+  covers    Project[]      @relation("ProjectCover")
+  projects  ProjectMedia[]
+}
+
+/// Portfolio item shown on the public website and managed in the admin panel.
+model Project {
+  id               String         @id @default(cuid())
+  slug             String         @unique
+  title            String
+  clientName       String?
+  showClientName   Boolean        @default(false)
+  /// WEB | APP | LOGO | VIDEO | MARKETING | CREATIVE | OTHER
+  category         String         @default("WEB")
+  industry         String?
+  /// string[] of service slugs, e.g. ["web-development", "seo"]
+  serviceSlugs     Json?
+  /// string[] of technology names
+  technologies     Json?
+  year             Int?
+  summary          String
+  challenge        String? // @text
+  solution         String? // @text
+  /// Array of { label, value }, e.g. { "label": "Organic traffic", "value": "+140%" }
+  results          Json?
+  liveUrl          String?
+  videoUrl         String?
+  testimonialQuote String? // @text
+  testimonialAuthor String?
+  testimonialRole  String?
+  coverMediaId     String?
+  cover            Media?         @relation("ProjectCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  media            ProjectMedia[]
+  /// DRAFT | PUBLISHED
+  status           String         @default("DRAFT")
+  featured         Boolean        @default(false)
+  sortOrder        Int            @default(0)
+  publishedAt      DateTime?
+  seoTitle         String?
+  seoDescription   String?
+  deletedAt        DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([status, deletedAt])
+  @@index([category])
+}
+
+model ProjectMedia {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mediaId   String
+  media     Media   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  caption   String?
+  sortOrder Int     @default(0)
+
+  @@index([projectId, sortOrder])
+}
